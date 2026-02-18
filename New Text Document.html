@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Shift Piket Kantor v3.3</title>
+    <style>
+        :root { --p: #6c5ce7; --s: #00b894; --d: #d63031; --bg: #f1f2f6; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); padding: 15px; margin: 0; color: #333; }
+        .container { max-width: 1100px; margin: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
+        
+        .setup-section { background: #f9f9f9; padding: 15px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #eee; }
+        .grid-input { display: flex; gap: 10px; margin-bottom: 10px; }
+        input, select { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #ddd; }
+        
+        .btn { padding: 10px 15px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; transition: 0.2s; }
+        .btn-add { background: var(--p); }
+        .btn-save { background: var(--s); width: 100%; margin: 15px 0; font-size: 1.1em; }
+        
+        /* Statistik Style */
+        .stats-container { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px; }
+        .stat-card { background: #fff; border: 1px solid var(--p); padding: 5px 12px; border-radius: 8px; font-size: 0.9em; display: flex; align-items: center; gap: 8px; }
+        .stat-count { background: var(--p); color: white; padding: 2px 8px; border-radius: 5px; font-weight: bold; }
+
+        .table-container { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; font-size: 0.85em; table-layout: fixed; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; word-wrap: break-word; }
+        th { background: var(--p); color: white; }
+        
+        .day-header { background: #f0f0f0; font-weight: bold; text-align: left; padding-left: 10px; cursor: pointer; width: 15%; }
+        .holiday { background: #ffeaa7 !important; color: #d63031; font-style: italic; }
+        .national-holiday { background: #ff7675 !important; color: white; font-style: italic; }
+        
+        .shift-time { font-size: 0.75em; color: #666; display: block; margin-bottom: 2px; font-weight: bold; }
+        select.piket-select { width: 100%; font-size: 0.9em; padding: 4px; border-radius: 4px; border: 1px solid #ccc; margin-bottom: 2px; }
+        .print-name { display: none; font-weight: bold; font-size: 1em; line-height: 1.2; }
+
+        /* PERBAIKAN CETAK V3.3 */
+        @media print {
+            @page { size: portrait; margin: 0.8cm; }
+            body { background: white; padding: 0; }
+            .container { box-shadow: none; width: 100%; max-width: 100%; padding: 0; margin: 0; }
+            
+            /* Sembunyikan Rekap dan tombol saat cetak */
+            .setup-section, .btn, .no-print, .hint, .stats-header, #statsBoard { display: none !important; }
+            
+            table { font-size: 11px; width: 100%; border: 1.5px solid #000; margin-top: 0; }
+            th, td { border: 1px solid #000; padding: 4px 2px; }
+            th { background: #6c5ce7 !important; color: white !important; -webkit-print-color-adjust: exact; }
+            .day-header { background: #eee !important; -webkit-print-color-adjust: exact; width: 80px; }
+            .piket-select { display: none !important; }
+            .print-name { display: block !important; }
+            .holiday, .national-holiday { -webkit-print-color-adjust: exact; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2 style="text-align:center; color:var(--p); margin-bottom:15px;">📅 Jadwal Shift Piket Kantor</h2>
+    
+    <div class="setup-section no-print">
+        <div class="grid-input">
+            <input type="text" id="nameInput" placeholder="Tambah Nama Petugas...">
+            <button class="btn btn-add" onclick="addName()">Tambah</button>
+        </div>
+        <div id="nameList" style="margin-bottom:15px;"></div>
+        
+        <div class="grid-input">
+            <select id="selectMonth" onchange="generateCalendar()"></select>
+            <input type="number" id="selectYear" value="2026" onchange="generateCalendar()">
+        </div>
+        
+        <div style="display: flex; gap: 5px;">
+            <button class="btn" style="background:#636e72" onclick="exportData()">📤 Backup</button>
+            <button class="btn" style="background:#636e72" onclick="document.getElementById('fileInput').click()">📥 Restore</button>
+            <button class="btn" style="background:#0984e3" onclick="window.print()">🖨️ Cetak Jadwal</button>
+            <input type="file" id="fileInput" class="hidden" style="display:none" onchange="importData(event)">
+        </div>
+    </div>
+
+    <h4 class="stats-header no-print" style="margin: 10px 0 5px 0; color: var(--p);">📊 Rekap Internal (Hanya Muncul di Sini):</h4>
+    <div id="statsBoard" class="stats-container no-print"></div>
+
+    <div class="table-container" style="margin-top:10px;">
+        <table id="piketTable">
+            <thead>
+                <tr>
+                    <th style="width: 100px;">Tanggal</th>
+                    <th>Shift 1</th>
+                    <th>Shift 2</th>
+                    <th>Shift 3</th>
+                    <th>Shift 4</th>
+                </tr>
+            </thead>
+            <tbody id="calendarBody"></tbody>
+        </table>
+    </div>
+    
+    <button class="btn btn-save no-print" onclick="saveToLocal()">💾 Simpan Jadwal</button>
+</div>
+
+<script>
+    let staff = JSON.parse(localStorage.getItem('piket_staff_v3')) || [];
+    let schedule = JSON.parse(localStorage.getItem('piket_schedule_v3')) || {};
+    let holidays = JSON.parse(localStorage.getItem('piket_holidays_v3')) || [];
+
+    const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+    const dayNames = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+
+    const monthSelect = document.getElementById('selectMonth');
+    months.forEach((m, i) => {
+        let opt = document.createElement('option');
+        opt.value = i; opt.text = m;
+        monthSelect.appendChild(opt);
+    });
+
+    function addName() {
+        const val = document.getElementById('nameInput').value.trim();
+        if(val && !staff.includes(val)) {
+            staff.push(val);
+            document.getElementById('nameInput').value = '';
+            renderNames(); generateCalendar();
+        }
+    }
+
+    function renderNames() {
+        const div = document.getElementById('nameList');
+        div.innerHTML = staff.map((n, i) => `<span style="background:#eee; padding:5px 10px; border-radius:15px; margin:3px; display:inline-block; font-size:13px;">${n} <b style="color:red; cursor:pointer" class="no-print" onclick="removeName(${i})">x</b></span>`).join('');
+        localStorage.setItem('piket_staff_v3', JSON.stringify(staff));
+    }
+
+    function removeName(idx) { 
+        if(confirm("Hapus petugas?")) { staff.splice(idx, 1); renderNames(); generateCalendar(); }
+    }
+
+    function toggleHoliday(dateKey) {
+        const index = holidays.indexOf(dateKey);
+        if (index > -1) {
+            holidays.splice(index, 1);
+        } else {
+            const ket = prompt("Keterangan libur:", "Libur Nasional");
+            if(ket) { holidays.push(dateKey); schedule[dateKey + "-ket"] = ket; }
+        }
+        localStorage.setItem('piket_holidays_v3', JSON.stringify(holidays));
+        generateCalendar();
+    }
+
+    function updateSched(key, val) { 
+        schedule[key] = val; 
+        updateStats();
+    }
+
+    function updateStats() {
+        const m = parseInt(document.getElementById('selectMonth').value);
+        const y = parseInt(document.getElementById('selectYear').value);
+        const daysInMonth = new Date(y, m + 1, 0).getDate();
+        
+        let counts = {};
+        staff.forEach(name => counts[name] = 0);
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateKey = `${y}-${m}-${d}`;
+            for (let s = 1; s <= 4; s++) {
+                const p1 = schedule[`${dateKey}-s${s}-p1`];
+                const p2 = schedule[`${dateKey}-s${s}-p2`];
+                if(p1 && counts.hasOwnProperty(p1)) counts[p1]++;
+                if(p2 && counts.hasOwnProperty(p2)) counts[p2]++;
+            }
+        }
+
+        const board = document.getElementById('statsBoard');
+        board.innerHTML = staff.map(name => `
+            <div class="stat-card">
+                <span>${name}</span>
+                <span class="stat-count">${counts[name]}x</span>
+            </div>
+        `).join('');
+    }
+
+    function generateCalendar() {
+        const m = parseInt(document.getElementById('selectMonth').value);
+        const y = parseInt(document.getElementById('selectYear').value);
+        const daysInMonth = new Date(y, m + 1, 0).getDate();
+        const body = document.getElementById('calendarBody');
+        body.innerHTML = '';
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateObj = new Date(y, m, d);
+            const dayIdx = dateObj.getDay();
+            const dayName = dayNames[dayIdx];
+            const dateKey = `${y}-${m}-${d}`;
+            const isNationalHoliday = holidays.includes(dateKey);
+
+            let row = document.createElement('tr');
+            
+            if (dayIdx === 0 || dayIdx === 6 || isNationalHoliday) {
+                let text = (dayIdx === 0 || dayIdx === 6) ? "Libur Akhir Pekan" : (schedule[dateKey + "-ket"] || "Libur Nasional");
+                let cssClass = isNationalHoliday ? "national-holiday" : "holiday";
+                row.innerHTML = `<td class="day-header ${cssClass}" onclick="toggleHoliday('${dateKey}')">${d} (${dayName})</td><td colspan="4" class="${cssClass}">${text}</td>`;
+            } else {
+                let times = (dayIdx === 5) 
+                    ? ["07:00-09:07", "09:07-11:15", "11:15-13:23", "13:23-15:30"]
+                    : ["07:00-09:00", "09:00-11:00", "11:00-13:00", "13:00-15:00"];
+
+                let html = `<td class="day-header" onclick="toggleHoliday('${dateKey}')">${d} (${dayName})</td>`;
+                for (let s = 1; s <= 4; s++) {
+                    const s1 = schedule[`${dateKey}-s${s}-p1`] || "";
+                    const s2 = schedule[`${dateKey}-s${s}-p2`] || "";
+                    html += `<td>
+                        <span class="shift-time">${times[s-1]}</span>
+                        <select class="piket-select no-print" onchange="updateSched('${dateKey}-s${s}-p1', this.value)">
+                            <option value="">- P1 -</option>
+                            ${staff.map(name => `<option value="${name}" ${s1 === name ? 'selected' : ''}>${name}</option>`).join('')}
+                        </select>
+                        <select class="piket-select no-print" onchange="updateSched('${dateKey}-s${s}-p2', this.value)">
+                            <option value="">- P2 -</option>
+                            ${staff.map(name => `<option value="${name}" ${s2 === name ? 'selected' : ''}>${name}</option>`).join('')}
+                        </select>
+                        <div class="print-name">${s1 ? s1 : '-'}<br>${s2 ? s2 : '-'}</div>
+                    </td>`;
+                }
+                row.innerHTML = html;
+            }
+            body.appendChild(row);
+        }
+        updateStats();
+    }
+
+    function saveToLocal() { 
+        localStorage.setItem('piket_schedule_v3', JSON.stringify(schedule)); 
+        localStorage.setItem('piket_holidays_v3', JSON.stringify(holidays));
+        alert("Jadwal Disimpan!"); 
+    }
+    
+    function exportData() {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({staff, schedule, holidays}));
+        const a = document.createElement('a'); a.setAttribute("href", dataStr); a.setAttribute("download", "piket_v3.3.json"); a.click();
+    }
+
+    function importData(e) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const data = JSON.parse(ev.target.result);
+            staff = data.staff || []; schedule = data.schedule || {}; holidays = data.holidays || [];
+            renderNames(); generateCalendar();
+        };
+        reader.readAsText(e.target.files[0]);
+    }
+
+    const today = new Date();
+    document.getElementById('selectMonth').value = today.getMonth();
+    document.getElementById('selectYear').value = today.getFullYear();
+    renderNames(); generateCalendar();
+</script>
+</body>
+</html>
